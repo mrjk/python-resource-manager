@@ -1,8 +1,10 @@
-import pytest
 import os
-from resource_manager.resources import ResourceManager
-from resource_manager.resolver import DepBuilder
+
+import pytest
+
 from resource_manager.exceptions import ResourceResolutionError
+from resource_manager.resolver import DepBuilder
+from resource_manager.resources import ResourceManager
 
 
 class TestEndToEndWorkflow:
@@ -125,7 +127,7 @@ class TestEndToEndWorkflow:
         error_str = str(excinfo.value)
         assert any(term in error_str.lower() for term in ["cycle", "circular", "loop"])
         
-    def test_complex_dependency_graph(self):
+    def test_complex_dependency_graph(self, tmp_path):
         """Test resolution of a complex dependency graph with multiple paths."""
         # Create a resource manager with a complex dependency graph
         manager = ResourceManager()
@@ -193,7 +195,7 @@ class TestEndToEndWorkflow:
         # Generate a visualization if not in CI environment
         if not os.environ.get("CI"):
             try:
-                resolver.gen_graph(output_file="complex_graph.png")
+                resolver.gen_graph(output_file=str(tmp_path / "complex_graph.png"))
             except Exception:
                 # Skip graph generation if it fails
                 pass

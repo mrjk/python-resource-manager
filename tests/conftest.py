@@ -1,8 +1,9 @@
-import pytest
 from typing import Dict
 
-from resource_manager.resources import ResourceManager, Resource
+import pytest
+
 from resource_manager.resolver import DepBuilder
+from resource_manager.resources import Resource, ResourceManager
 
 
 @pytest.fixture
@@ -17,8 +18,8 @@ def basic_resource():
     return Resource(
         "test_resource", 
         scope="test",
-        provides=[{"kind": "test.capability"}],
-        requires=[{"kind": "test.dependency"}]
+        provides=[{"kind": "test_capability"}],
+        requires=[{"kind": "test_dependency"}]
     )
 
 

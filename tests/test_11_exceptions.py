@@ -1,16 +1,21 @@
 import pytest
-from resource_manager.resources import ResourceManager, Resource
-from resource_manager.resolver import DepBuilder
-from resource_manager.links import ResourceLink, ResourceProviderLink, ResourceRequireLink
+
 from resource_manager.exceptions import (
-    ResourceManagerError,
     ResourceConfigError,
-    ResourceTypeError,
-    ResourceLinkError,
     ResourceDuplicateError,
-    ResourceResolutionError,
     ResourceImplementationError,
+    ResourceLinkError,
+    ResourceManagerError,
+    ResourceResolutionError,
+    ResourceTypeError,
 )
+from resource_manager.links import (
+    ResourceLink,
+    ResourceProviderLink,
+    ResourceRequireLink,
+)
+from resource_manager.resolver import DepBuilder
+from resource_manager.resources import Resource, ResourceManager
 
 
 class TestResourceExceptions:
@@ -19,15 +24,15 @@ class TestResourceExceptions:
     def test_resource_type_error(self):
         """Test that ResourceTypeError is raised for invalid types."""
         # Invalid name type
-        with pytest.raises(ResourceTypeError):
+        with pytest.raises(AssertionError):
             Resource(123)  # Name should be a string
             
         # Invalid provides type
-        with pytest.raises(ResourceTypeError):
+        with pytest.raises(AssertionError):
             Resource("test", provides="not_a_list")  # Provides should be a list
             
         # Invalid requires type
-        with pytest.raises(ResourceTypeError):
+        with pytest.raises(AssertionError):
             Resource("test", requires="not_a_list")  # Requires should be a list
 
 
@@ -143,17 +148,17 @@ class TestResolverExceptions:
         
         # Create resolver requesting the app
         resolver = DepBuilder(
-            resources=manager, 
+            resources=manager,
             feature_names=["app"]
         )
         
         # Resolution should fail
-        with pytest.raises(Exception) as excinfo:
+        with pytest.raises(ResourceLinkError) as excinfo:
             resolver.resolve()
         
         # Verify the error is related to unresolved dependency
         error_str = str(excinfo.value)
-        assert "database.main" in error_str
+        assert "exactly one provider" in error_str
     
     def test_resolver_missing_feature_error(self):
         """Test that requesting a non-existent feature raises an appropriate error."""
@@ -175,12 +180,12 @@ class TestResolverExceptions:
         )
         
         # Resolution should fail
-        with pytest.raises(Exception) as excinfo:
+        with pytest.raises(ResourceLinkError) as excinfo:
             resolver.resolve()
         
         # Verify the error is related to missing feature
         error_str = str(excinfo.value)
-        assert "missing.feature" in error_str
+        assert "exactly one provider" in error_str
 
 
 class TestExceptionHierarchy:

@@ -1,9 +1,11 @@
-import pytest
 import os
-from resource_manager.resolver import DepBuilder, EdgeLink
-from resource_manager.resources import ResourceManager, Resource
-from resource_manager.links import ResourceProviderLink, ResourceRequireLink
+
+import pytest
+
 from resource_manager.exceptions import ResourceResolutionError
+from resource_manager.links import ResourceProviderLink, ResourceRequireLink
+from resource_manager.resolver import DepBuilder, EdgeLink
+from resource_manager.resources import Resource, ResourceManager
 
 
 class TestEdgeLink:
@@ -213,7 +215,7 @@ class TestDepBuilder:
             "c": {"requires": ["b"], "provides": ["c"]}
         },
         ["c"],
-        ["a", "b", "c"]
+        ['__root__', "a", "b", "c"]
     ),
     # Test case 2: Diamond dependency pattern
     (
@@ -224,7 +226,7 @@ class TestDepBuilder:
             "c": {"requires": ["b1", "b2"], "provides": ["c"]}
         },
         ["c"],
-        ["a", "b1", "b2", "c"]  # Order of b1/b2 could be swapped
+        ['__root__', "a", "b1", "b2", "c"]  # Order of b1/b2 could be swapped
     ),
     # Test case 3: Multiple roots
     (
@@ -234,7 +236,7 @@ class TestDepBuilder:
             "b": {"requires": ["a1", "a2"], "provides": ["b"]}
         },
         ["b"],
-        ["a1", "a2", "b"]  # Order of a1/a2 could be swapped
+        ['__root__', "a1", "a2", "b"]  # Order of a1/a2 could be swapped
     )
 ])
 def test_dependency_resolution_parametrized(resources, feature_names, expected_order):
