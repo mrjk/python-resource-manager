@@ -6,7 +6,6 @@ It provides specialized exceptions for different error scenarios that may occur
 during resource configuration, linking, resolution, and implementation.
 """
 
-
 # Custom exceptions
 ###########################
 

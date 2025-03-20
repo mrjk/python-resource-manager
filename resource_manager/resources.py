@@ -29,7 +29,6 @@ from .links import (
 # pylint: disable=relative-beyond-top-level
 
 
-
 # Resources implementation
 ###########################
 
@@ -88,12 +87,10 @@ class Resource:
 
         # Build provider and require links
         self.provides = [
-            ResourceProviderLink(config=provide, parent=self)
-            for provide in provides
+            ResourceProviderLink(config=provide, parent=self) for provide in provides
         ]
         self.requires = [
-            ResourceRequireLink(config=require, parent=self)
-            for require in requires
+            ResourceRequireLink(config=require, parent=self) for require in requires
         ]
 
         # Set extended attributes
@@ -102,8 +99,6 @@ class Resource:
         attrs.update(kwargs)
         for attr, value in attrs.items():
             setattr(self, attr, value)
-
-
 
     def __repr__(self) -> str:
         """Return string representation of the resource.

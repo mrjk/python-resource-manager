@@ -40,8 +40,6 @@ from .resources import (
 # pylint: disable=relative-beyond-top-level
 
 
-
-
 # Resource resolver implementation
 ###########################
 
@@ -309,7 +307,9 @@ class DepBuilder:
         out_tree = {}
         resolve_tree_report = []
         self.resolve_resources_tree(
-            self.root_node_name or "__builder__", dep_tree=out_tree, report=resolve_tree_report
+            self.root_node_name or "__builder__",
+            dep_tree=out_tree,
+            report=resolve_tree_report,
         )
         if not self.root_node_name:
             out_tree.pop(self.root_node_name)
@@ -421,7 +421,7 @@ class DepBuilder:
         )
 
         return match_name, provider_links
-    
+
     def _get_simplified_tree(self, dep_tree) -> dict:
         """Create a simplified dependency tree with resource names only.
 
