@@ -19,14 +19,13 @@ Resource links use a rule-based syntax that specifies the kind, instance, and ca
 
 # pylint: disable=relative-beyond-top-level
 
-from typing import Dict, Any, Union, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .exceptions import (
     ResourceConfigError,
     ResourceLinkError,
     ResourceTypeError,
 )
-
 
 # Resources links implementation
 ###########################
@@ -82,6 +81,11 @@ class ResourceLink:
 
         if not self.kind:
             raise ResourceConfigError(f"Kind is required, got: {self.kind}")
+
+        assert isinstance(self.kind, str)
+        assert isinstance(self.instance, str) or self.instance is None
+        assert isinstance(self.mod, str) or self.mod is None
+        assert isinstance(self.raw_value, str) or self.raw_value is None
 
     def parse_config(
         self, value: Union[str, Dict[str, Any], "ResourceLink"]
@@ -183,9 +187,10 @@ class ResourceLink:
         Returns:
             str: Rule string in format "<kind>.<instance>" or "<kind>.*" if no instance
         """
-        if self.instance is not None:
-            return f"{self.kind}.{self.instance}"
-        return f"{self.kind}.*"
+        out = [self.kind]
+        out.append(self.instance or "ANY")
+        out.append(self.mod or "DEFAULT")
+        return ".".join(out)
 
     @property
     def resource(self) -> "Resource":
@@ -197,6 +202,8 @@ class ResourceLink:
         return self.parent
 
     def __repr__(self):
+        if self.resource is None:
+            return f"{self.__class__.__name__}({self.rule})"
         return f"{self.__class__.__name__}({self.rule})[{self.resource.name}]"
 
 

@@ -13,20 +13,21 @@ This system supports building complex configurations where resources can be
 scoped, linked, and managed programmatically.
 """
 
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
+from .exceptions import (
+    ResourceDuplicateError,
+    ResourceTypeError,
+)
+from .links import (
+    ResourceProviderLink,
+    ResourceRequireLink,
+)
 
 # import logging
 
 # pylint: disable=relative-beyond-top-level
 
-from .links import (
-    ResourceProviderLink,
-    ResourceRequireLink,
-)
-from .exceptions import (
-    ResourceTypeError,
-    ResourceDuplicateError,
-)
 
 
 # Resources implementation
@@ -76,22 +77,33 @@ class Resource:
         self.name = name
         self.scope = scope
         self.kwargs = kwargs
+        provides = provides or []
+        requires = requires or []
 
+        # Assertions
+        assert isinstance(self.name, str)
+        assert isinstance(self.scope, str) or self.scope is None
+        assert isinstance(provides, list)
+        assert isinstance(requires, list)
+
+        # Build provider and require links
         self.provides = [
             ResourceProviderLink(config=provide, parent=self)
-            for provide in provides or []
+            for provide in provides
         ]
         self.requires = [
             ResourceRequireLink(config=require, parent=self)
-            for require in requires or []
+            for require in requires
         ]
 
-        # Temporary workaround to set attributes
+        # Set extended attributes
         attrs = {}
         attrs.update(self.default_attrs)
         attrs.update(kwargs)
         for attr, value in attrs.items():
             setattr(self, attr, value)
+
+
 
     def __repr__(self) -> str:
         """Return string representation of the resource.
@@ -193,6 +205,7 @@ class ResourceManager:
         self,
         resources: Dict[str, Union[Dict[str, Any], Resource]],
         scope: Optional[str] = None,
+        force: bool = False,
     ) -> None:
         """Adds multiple resources to the catalog.
 
@@ -215,7 +228,7 @@ class ResourceManager:
                 raise ResourceTypeError(
                     f"Expected dict or Resource, got: {type(config)}={config}"
                 )
-            self.add_resource(name, scope=scope, config=config)
+            self.add_resource(name, scope=scope, config=config, force=force)
 
     def get_resource(self, name: str) -> Resource:
         """Retrieves a specific resource from the catalog.

@@ -17,28 +17,29 @@ ability to customize how requirements are matched with providers through the res
 method.
 """
 
-from typing import Dict, List, Optional, Union, Any, Tuple
-
 from graphlib import TopologicalSorter
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import pydot
 
-# pylint: disable=relative-beyond-top-level
-
+from .exceptions import (
+    ResourceDuplicateError,
+    ResourceImplementationError,
+    ResourceResolutionError,
+    ResourceTypeError,
+)
 from .links import (
     ResourceProviderLink,
     ResourceRequireLink,
-)
-
-from .exceptions import (
-    ResourceTypeError,
-    ResourceDuplicateError,
-    ResourceResolutionError,
-    ResourceImplementationError,
 )
 from .resources import (
     Resource,
     ResourceManager,
 )
+
+# pylint: disable=relative-beyond-top-level
+
+
 
 
 # Resource resolver implementation
@@ -152,11 +153,13 @@ class DepBuilder:
     def __init__(
         self,
         resources: Optional[Union[ResourceManager, Dict[str, Resource]]] = None,
+        root_name: Optional[str] = "__root__",
         feature_names: Optional[List[str]] = None,
         remap_rules: Optional[Dict[str, str]] = None,
         debug: bool = False,
     ):
 
+        self.root_node_name = root_name or "__builder__"
         self.remap_rules = remap_rules or {}
         self.feature_names = feature_names or []
         self.debug = debug
@@ -228,7 +231,7 @@ class DepBuilder:
             self.rmanager.add_resources(extra_resources, scope="APP_EXTRA")
 
         self.rmanager.add_resource(
-            "__build_ctx__",
+            self.root_node_name or "__builder__",
             scope="BUILDER",
             config={
                 "desc": "Temporary build context",
@@ -306,8 +309,10 @@ class DepBuilder:
         out_tree = {}
         resolve_tree_report = []
         self.resolve_resources_tree(
-            "__build_ctx__", dep_tree=out_tree, report=resolve_tree_report
+            self.root_node_name or "__builder__", dep_tree=out_tree, report=resolve_tree_report
         )
+        if not self.root_node_name:
+            out_tree.pop(self.root_node_name)
 
         if debug:
             print("Resolution tree:")
@@ -408,8 +413,15 @@ class DepBuilder:
         Raises:
             ResourceImplementationError: This method must be implemented by subclasses
         """
-        raise ResourceImplementationError("Resolve requirements")
+        match_name, provider_links = requirement.match_provider(
+            self.provider_links,
+            remap_rules=self.remap_rules,
+            default_mode="one",
+            remap_requirement=True,
+        )
 
+        return match_name, provider_links
+    
     def _get_simplified_tree(self, dep_tree) -> dict:
         """Create a simplified dependency tree with resource names only.
 
