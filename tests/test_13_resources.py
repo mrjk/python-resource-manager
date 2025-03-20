@@ -1,7 +1,13 @@
+"""
+Unit tests for the resource manager and resolver.
+"""
+
 import pytest
 
-from resource_manager.exceptions import ResourceDuplicateError, ResourceTypeError
-from resource_manager.resources import Resource, ResourceManager
+from resource_manager.exceptions import ResourceDuplicateError
+from resource_manager.resources import Resource
+
+# pylint: disable=no-member
 
 
 class TestResource:

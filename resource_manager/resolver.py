@@ -22,23 +22,19 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pydot
 
-from .exceptions import (
+from resource_manager.exceptions import (
     ResourceDuplicateError,
-    ResourceImplementationError,
     ResourceResolutionError,
     ResourceTypeError,
 )
-from .links import (
+from resource_manager.links import (
     ResourceProviderLink,
     ResourceRequireLink,
 )
-from .resources import (
+from resource_manager.resources import (
     Resource,
     ResourceManager,
 )
-
-# pylint: disable=relative-beyond-top-level
-
 
 # Resource resolver implementation
 ###########################
@@ -148,6 +144,7 @@ class DepBuilder:
 
     resource_manager_class: ResourceManager = ResourceManager
 
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     def __init__(
         self,
         resources: Optional[Union[ResourceManager, Dict[str, Resource]]] = None,
@@ -386,6 +383,7 @@ class DepBuilder:
                         report=report,
                     )
 
+    # pylint: disable=unused-argument
     def resolve_requirements(
         self, requirement: ResourceRequireLink, lvl: int = 0
     ) -> Tuple[str, List[ResourceProviderLink]]:

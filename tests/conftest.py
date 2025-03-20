@@ -1,9 +1,15 @@
+"""
+Main config for pytest
+"""
+
 from typing import Dict
 
 import pytest
 
 from resource_manager.resolver import DepBuilder
 from resource_manager.resources import Resource, ResourceManager
+
+# pylint: disable=redefined-outer-name
 
 
 @pytest.fixture

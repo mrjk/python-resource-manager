@@ -1,9 +1,12 @@
+"""
+Unit tests for the resource manager and resolver.
+"""
+
 import pytest
 
 from resource_manager.exceptions import (
     ResourceConfigError,
     ResourceLinkError,
-    ResourceTypeError,
 )
 from resource_manager.links import (
     ResourceLink,
@@ -11,6 +14,8 @@ from resource_manager.links import (
     ResourceRequireLink,
 )
 from resource_manager.resources import Resource
+
+# pylint: disable=too-few-public-methods
 
 
 class TestResourceLink:

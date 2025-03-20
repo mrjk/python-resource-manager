@@ -1,3 +1,7 @@
+"""
+Performance benchmarks for the resource manager and resolver.
+"""
+
 import pytest
 
 from resource_manager.resolver import DepBuilder

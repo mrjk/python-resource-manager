@@ -1,3 +1,7 @@
+"""
+Unit tests for the resource manager and resolver.
+"""
+
 import os
 
 import pytest
@@ -5,7 +9,7 @@ import pytest
 from resource_manager.exceptions import ResourceResolutionError
 from resource_manager.links import ResourceProviderLink, ResourceRequireLink
 from resource_manager.resolver import DepBuilder, EdgeLink
-from resource_manager.resources import Resource, ResourceManager
+from resource_manager.resources import Resource
 
 
 class TestEdgeLink:
@@ -193,6 +197,7 @@ class TestDepBuilder:
         try:
             resolver.gen_graph(output_file=output_file)
             assert os.path.exists(output_file)
+        # pylint: disable=broad-exception-caught
         except Exception as e:
             pytest.skip(f"Graph generation failed, skipping test: {e}")
 

@@ -1,13 +1,16 @@
-import pytest
+"""
+Property-based tests for the resource manager and resolver with hypothesis.
+"""
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from resource_manager.exceptions import ResourceResolutionError
-from resource_manager.links import ResourceProviderLink, ResourceRequireLink
 from resource_manager.resolver import DepBuilder
-from resource_manager.resources import Resource, ResourceManager
+from resource_manager.resources import ResourceManager
 
 # Define strategies for generating test data
+
+# pylint: disable=too-many-locals,too-few-public-methods,unused-variable
 
 
 @st.composite

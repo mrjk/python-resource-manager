@@ -1,8 +1,11 @@
+"""
+Integration tests for the resource manager and resolver.
+"""
+
 import os
 
 import pytest
 
-from resource_manager.exceptions import ResourceResolutionError
 from resource_manager.resolver import DepBuilder
 from resource_manager.resources import ResourceManager
 
@@ -174,6 +177,7 @@ class TestEndToEndWorkflow:
         if not os.environ.get("CI"):
             try:
                 resolver.gen_graph(output_file=str(tmp_path / "complex_graph.png"))
+            # pylint: disable=broad-exception-caught
             except Exception:
                 # Skip graph generation if it fails
                 pass

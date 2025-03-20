@@ -15,18 +15,16 @@ scoped, linked, and managed programmatically.
 
 from typing import Any, Dict, List, Optional, Union
 
-from .exceptions import (
+from resource_manager.exceptions import (
     ResourceDuplicateError,
     ResourceTypeError,
 )
-from .links import (
+from resource_manager.links import (
     ResourceProviderLink,
     ResourceRequireLink,
 )
 
 # import logging
-
-# pylint: disable=relative-beyond-top-level
 
 
 # Resources implementation

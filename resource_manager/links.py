@@ -17,11 +17,9 @@ Resource links use a rule-based syntax that specifies the kind, instance, and ca
 - "*" or "zero_or_many": Any number of matches allowed
 """
 
-# pylint: disable=relative-beyond-top-level
-
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from .exceptions import (
+from resource_manager.exceptions import (
     ResourceConfigError,
     ResourceLinkError,
     ResourceTypeError,
