@@ -17,10 +17,16 @@ ability to customize how requirements are matched with providers through the res
 method.
 """
 
+import os
 from graphlib import TopologicalSorter
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import pydot
+try:
+    import pydot
+    HAS_PYDOT = True
+except ImportError:
+    pydot = None
+    HAS_PYDOT = False
 
 from resource_manager.exceptions import (
     ResourceDuplicateError,
@@ -473,6 +479,9 @@ class DepBuilder:
         Note:
             This method requires the pydot library and GraphViz to be installed.
         """
+
+        if not HAS_PYDOT:
+            raise Exception("Pydot package is not present")
         dep_tree = self.dep_tree
 
         # Create a root directed graph
