@@ -1,0 +1,355 @@
+
+
+catalog:
+
+
+  # homepage: {}
+  # minio:
+
+  #   features:
+
+  #     __base__:
+  #       desc: Provides S3 services
+  #       # enable: True
+  #       requires:
+  #         - web_app.minio
+  #         - web_api.minio
+
+  #     dashboard:
+  #       enable: False
+  #       auto_enable: True
+  #       desc: Provides a minio dashboard
+  #       provides:
+  #         # - feat.dashboard
+  #         # - web_app.dashboard
+  #         - web_app.minio
+
+  #     api:
+  #       enable: False
+  #       auto_enable: True
+  #       desc: Provides minio API endpoint
+  #       vars:
+  #         app_prefix: -api
+  #       provides:
+  #         # - feat.dashboard
+  #         # - web_app.dashboard
+  #         - web_api.minio
+
+
+
+  traefik:
+
+
+    # resource_model:
+    #   traefik_tls:
+    #   traefik_tls_provider:
+
+    default_features:
+      - __base__
+      - expose_http
+      - expose_http_admin
+
+    remap_rules:
+      traefik_tls: self_signed
+
+
+    # select_group:
+    #   __default__:
+    #   tls:
+    #     constraint:
+    #       - 
+
+    # Provides plugins
+    plugins:
+      traefik_web_app:
+        public: True
+        availability: on_start # on_demand
+        requires:
+          - web_app
+          - web_api
+
+
+      # Example for homepage
+      homepage:
+        public: True
+        availability: always
+        requires:
+          - web_app
+          # - web_api
+
+
+    # This is internal features, only useable by the pod
+    # To each feature matches a docker-compose.yml file or
+    # a jsonnet file.
+    # Build logic follow a basic docker compose config command
+    # with many compose files.
+    features:
+
+      # Profiles
+      # -------------
+
+      __base__:
+        desc: Provides Treafik reverse proxy server
+        # enable: True
+        # requires:
+        #   - network.proxy:?
+        # requires:
+        #   - expose_http
+
+      profile_http:
+        # enable: False
+        auto_enable: True
+        desc: Provides a web dashboard
+        provides:
+          - profile_http
+        requires:
+          # - feat.dashboard
+          # - web_app.dashboard
+          - expose_http
+
+      profile_https:
+        auto_enable: True
+        desc: Provides a web dashboard with HTTPS
+        requires:
+          # Example modifiers for graph edge colors (! one, ? optional, + many, * any)
+          - expose_http.!
+          - expose_https.?
+
+      profile_full:
+        auto_enable: True
+        desc: Provides a web dashboard with HTTPS
+        provides:
+          - profile_full
+        requires:
+          - expose_http.+
+          # - expose_https
+          - web_app.admin.*
+          # - web_api.admin
+
+
+
+      # Public componenets
+      # -------------
+
+      dashboard:
+        # enable: False
+        auto_enable: True
+        desc: Provides a web dashboard
+        provides:
+          # - feat.dashboard
+          # - web_app.dashboard
+          - web_app.admin
+
+      api:
+        # enable: False
+        auto_enable: True
+        desc: Provides a API endpoints
+        vars:
+          app_prefix: -api
+        provides:
+          # - feat.dashboard
+          # - web_app.dashboard
+          - web_api.admin
+
+
+      # Exposed ports
+      # -------------
+      expose_http_admin:
+        desc: Enable HTTP public dashboard for debugging
+        # enable: False
+        # provides:
+        #   - expose.8080
+        requires:
+          - web_app.admin
+          - expose_port_http_admin
+
+      expose_http:
+        desc: Enable HTTP public access
+        # enable: True
+        # provides:
+        #   - expose.80
+        requires:
+          - expose_port_http
+
+      expose_https:
+        desc: Enable HTTPS public access
+        # enable: True
+        # provides:
+        #   - expose.443
+        requires:
+          - expose_port_https
+          - traefik_tls_provider
+        # options:
+        #   - tls+
+        # constraint:
+        #   - 
+
+
+
+
+      # TLS Config
+      # -------------
+      # tls:
+      #   desc: Provides TLS support
+      #   one_of:
+
+
+      tls_provider:
+        desc: Provide TLS support for traefik
+
+        group_mode: "one"
+        # group_default: self_signed
+        # group_default: acme_dns
+        provides:
+          - traefik_tls_provider
+        requires:
+          - traefik_tls
+
+          # - traefik_tls.acme_dns
+          # - traefik_tls.self_dyn
+          # - traefik_tls.acme_http
+          # - traefik_tls.acme_tls
+          # - traefik_tls.acme_dns
+
+      #   choices:
+
+      # Generate SSL
+      tls_dyn:
+        desc: Provides ephemeral self-signed certificates
+        group: tls_provider
+        provides:
+          - traefik_tls.self_dyn
+          # - traefik_tls.default
+        # constraint:
+        #   - tls?
+
+      tls_self_signed:
+        desc: Provides self-signed certificates
+        group: tls_provider
+        provides:
+          - traefik_tls.self_signed
+        # constraint:
+        #   - tls?
+
+      tls_self_ca:
+        desc: Provides self-signed certificates with CA
+        group: tls_provider
+        provides:
+          - traefik_tls.self_ca
+        # constraint:
+        #   - tls?
+
+
+      # External HTTPS
+      tls_traefikme:
+        # enable: True
+        desc: Provides traefik.me certificates
+        group: tls_provider
+        provides:
+          - traefik_tls.traefikme
+        # constraint:
+        #   - tls?
+
+      tls_wildcard:
+        # enable: True
+        desc: Provides wildcard certificate
+        group: tls_provider
+        provides:
+          - traefik_tls.wildcard
+        # constraint:
+        #   - tls?
+
+
+      # TLS via ACME provider
+      tls_acme_dns:
+        desc: Provides ACME with DNS challenge
+        group: tls_provider
+        requires:
+          - service_acme_dns
+        provides:
+          - traefik_tls.acme_dns
+        # constraint:
+        #   - tls?
+
+      tls_acme_http:
+        desc: Provides ACME with HTTP challenge
+        group: tls_provider
+        # enable: True
+        requires:
+          - service_acme_http
+        provides:
+          - traefik_tls.acme_http
+        # constraint:
+        #   - tls?
+
+      tls_acme_tls:
+        desc: Provides ACME with TLS challenge
+        group: tls_provider
+        requires:
+          - service_acme_tls
+        provides:
+          - traefik_tls.acme_tls
+        # constraint:
+        #   - tls?
+            
+
+
+
+
+
+      # # TCP/UDP proxies (optional, first enabled overrides following)
+      # proxy_udp:
+      #   desc: Provide a network provider for UDP traefik
+      #   links:
+      #     - traefik_svc_udp
+
+      # proxy_tcp:
+      #   desc: Provide a network provider for TCP traefik
+      #   links:
+      #     - traefik_svc_tcp
+
+      # # Per topic proxies (optional, first enabled overrides following)
+      # proxy_web_app:
+      #   links:
+      #     - traefik_svc_web_app
+
+      # proxy_web_api:
+      #   links:
+      #     - traefik_svc_web_api
+
+      # proxy_web_admin:
+      #   links:
+      #     - traefik_svc_web_admin
+
+      # # Generic proxy type (Fallback, default)
+      # proxy_services:
+      #   desc: Provide a network provider for Web
+      #   auto_enable: True
+      #   links:
+      #     - traefik_svc_udp
+      #     - traefik_svc_tcp
+      #     - traefik_svc_web_app
+      #     - traefik_svc_web_api
+      #     - traefik_svc_web_admin
+
+      # # App internal features
+      # admin_dashboard:
+      #   auto_enable: True
+      #   provides:
+      #     - app_web_admin.8080
+      
+      # # App discovery
+      # # -------------
+      # discover_docker:
+      #   desc: Enable traefik auto-discovery via docker socket
+      #   auto_enable: True
+      #   requires:
+      #     - service.docker
+      #   provides:
+      #     - discovery.svc_udp
+      #     - discovery.svc_tcp
+      #     - discovery.web
+      #     - discovery.web_app
+      #     - discovery.web_api
+      #     - discovery.web_admin
+

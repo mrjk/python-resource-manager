@@ -1,0 +1,275 @@
+
+global:
+
+  remap_rules:
+    expose_ip: www
+    service_docker: local
+    service_acme_provider: zerossl
+    account_acme_dns: powerdns
+    # account_acme_dns: ovh
+    # traefik_tls: acme_dns
+
+
+  # resource_model:
+
+  #   expose_ip:
+  #     desc: Represent an IP
+  #   expose_port_http:
+  #   expose_port_https:
+
+  #   expose_port_http_admin:
+  #   expose_port_dns_udp:
+  #   expose_port_dns_tcp:
+
+
+  #   service_docker:
+  #   service_docker_unix:
+  #   service_docker_ssh:
+  #   service_docker_tcp:
+    
+
+  #   tls:
+  #   service_acme_provider:
+  #   service_acme:
+  #   service_acme_http:
+  #   service_acme_tls:
+  #   service_acme_dns:
+
+  #   account_acme_dns:
+
+  #   web_app:
+  #   web_api:
+
+  #   feature:
+
+  #   # traefik_tls:
+
+
+
+  features:
+
+    # IP and ports:
+    # ===================
+
+    pub_ip_local:
+      vars:
+        expose_ip: 127.0.0.1
+      provides:
+        - expose_ip.default
+        - expose_ip.local
+
+    pub_ip_www:
+      vars:
+        expose_ip: 68.68.68.68
+      provides:
+        - expose_ip.www
+
+
+    pub_port_http:
+      vars:
+        expose_port_http_prot: tcp
+        expose_port_http: 80
+      requires:
+        - expose_ip
+      provides:
+        - expose_port_http
+
+    pub_port_https:
+      vars:
+        expose_port_https_prot: tcp
+        expose_port_https: 443
+      requires:
+        - expose_ip
+      provides:
+        - expose_port_https
+
+
+    pub_port_https_admin:
+      vars:
+        expose_port_https_admin_prot: tcp
+        expose_port_https_admin: 9999
+      requires:
+        - expose_ip
+      provides:
+        - expose_port_http_admin
+
+
+    pub_port_dns_udp:
+      vars:
+        expose_port_dns_prot: udp
+        expose_port_dns: 53
+      requires:
+        - expose_ip
+      provides:
+        - expose_port_dns_udp
+
+    pub_port_dns_tcp:
+      vars:
+        expose_port_dns_prot: tcp
+        expose_port_dns: 53
+      requires:
+        - expose_ip
+      provides:
+        - expose_port_dns_tcp
+
+
+
+    # Docker
+    # ===================
+    
+    service_docker_local:
+      vars:
+        docker_prot: unix
+        docker_socket_file: /var/lib/docker.sock
+        docker_uri: "${docker_prot}://${docker_socket_file}"
+      provides:
+        - service_docker.local
+        - service_docker_unix.local
+
+    service_docker_remote:
+      vars:
+        docker_prot: tcp
+        docker_host: 127.0.0.1
+        docker_port: 2375      
+        docker_uri: "${docker_prot}://${docker_host}:${docker_port}"
+
+      provides:
+        - service_docker.remote_tcp
+        - service_docker_tcp.remote_tcp
+
+    service_docker_remote_ssh:
+      vars:
+        docker_prot: ssh
+        docker_user: docker_user
+        docker_host: 127.0.0.1
+        docker_port: 22
+        docker_uri: "${docker_prot}://${docker_user}@${docker_host}:${docker_port}"
+      provides:
+        - service_docker.remote_ssh
+        - service_docker_ssh.remote_ssh
+
+
+    # ACME resources
+    # =========================
+
+    # Main providers
+    service_acme_provider_le:
+      vars:
+        ca_server: https://acme-v02.api.letsencrypt.org/directory
+      provides:
+        - service_acme_provider.default
+        - service_acme_provider.le
+
+    service_acme_provider_zerossl:
+      vars:
+        ca_server: https://acme.zerossl.com/v2/DV90
+      provides:
+        - service_acme_provider.zerossl
+
+
+    # Default providers
+    service_acme:
+      provides:
+        - service_acme.default
+      requires:
+        - service_acme_http
+
+    # Challenges
+    service_acme_http:
+      requires:
+        - service_acme_provider
+      provides:
+        - service_acme_http
+
+    service_acme_tls:
+      requires:
+        - service_acme_provider
+      provides:
+        - service_acme_tls
+
+    service_acme_dns:
+      vars:
+        acme_challenge: dns
+      requires:
+        - service_acme_provider
+        - account_acme_dns
+      provides:
+        - service_acme_dns.default
+
+    # ACME DNS providers
+    account_acme_dns_ovh:
+      vars:
+        OVH_APPLICATION_KEY: 123456789876543
+        OVH_APPLICATION_SECRET: b9841238feb177a84330febba8a832089
+        OVH_CONSUMER_KEY: 256vfsd347245sdfg
+        OVH_ENDPOINT: ovh-eu
+      provides:
+        # - account_acme_dns.default
+        - account_acme_dns.ovh
+
+    account_acme_dns_powerdns:
+      vars:
+        PDNS_API_URL: http://pdns-server:80/
+        PDNS_API_KEY: xxxx
+      provides:
+        - account_acme_dns.powerdns
+
+
+
+
+
+
+
+    # # Other services - Let's encrypt
+    # # ------------------
+
+    # service_acme_le_http:
+    #   vars:
+    #     ca_server: https://acme-v02.api.letsencrypt.org/directory
+    #     acme_challenge: http
+    #   provides:
+    #     - service_acme
+    #     - service_acme.le
+    #     - service_acme.http
+
+    # service_acme_le_tls:
+    #   vars:
+    #     acme_challenge: tls
+    #   provides:
+    #     - service_acme.tls
+
+
+    # service_acme_le_dns:
+    #   vars:
+    #     acme_challenge: dns
+    #   requires:
+    #     - account_acme_dns
+    #   provides:
+    #     - service_acme.dns
+
+
+    # service_acme_zerossl:
+    #   vars:
+    #     ca_server: https://acme.zerossl.com/v2/DV90
+    #   provides:
+    #     - service_acme.zerossl
+
+
+
+    # account_acme_dns_ovh:
+    #   vars:
+    #     OVH_APPLICATION_KEY: 123456789876543
+    #     OVH_APPLICATION_SECRET: b9841238feb177a84330febba8a832089
+    #     OVH_CONSUMER_KEY: 256vfsd347245sdfg
+    #     OVH_ENDPOINT: ovh-eu
+    #   provides:
+    #     - account_acme_dns.ovh
+
+    # account_acme_dns_powerdns:
+    #   vars:
+    #     PDNS_API_URL=http://pdns-server:80/
+    #     PDNS_API_KEY=xxxx
+    #   provides:
+    #     - account_acme_dns.powerdns
+
+
