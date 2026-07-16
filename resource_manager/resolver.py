@@ -465,6 +465,35 @@ class DepBuilder:
     # Public API
     # ===============
 
+
+    def dump(self):
+        """Debug the dependency tree."""
+        from pprint import pprint
+
+
+        # print("Provider links:")
+        # print(self.provider_links)
+        print("-------------- Debug - Start ------------------")
+        print("Object:", self)
+        print("Resource manager: %s" % self.rmanager)
+        print("Root node name: %s" % self.root_node_name)
+        print("Debug: %s" % self.debug)
+        print("Resolved: %s" % self.resolved)
+
+        print("Feature names:")
+        pprint(self.feature_names)
+        print("Remap rules:")
+        pprint(self.remap_rules)
+        print("Dependency order:")
+        pprint(self.dep_order)
+        print("Dependency topo:")
+        pprint(self.dep_topo)
+        print("Dependency tree:")
+        pprint(self.dep_tree)
+        print("--------------  Debug - End  ------------------")
+
+
+
     def gen_graph(self, output_file: str = "output.png") -> None:
         """Generate a visual representation of the dependency graph.
 
