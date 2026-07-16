@@ -70,7 +70,7 @@ WORK_DIR = os.path.join(
 
 CONTEXT = from_yaml(read_file(os.path.join(WORK_DIR, "context.yml"))).get("global")
 CATALOG = from_yaml(read_file(os.path.join(WORK_DIR, "catalog.yml"))).get("catalog")
-OUT_PNG = os.path.join(WORK_DIR, "output.png")
+OUT_PNG = "output.png"
 
 def test3():
 
@@ -95,9 +95,9 @@ def test3():
     print("DEBUUUGGG: app_resolver.builder.dump() - ", app_resolver.builder)
     app_resolver.builder.dump()
 
-    # Generate graph
-    app_resolver.gen_graph(output_file=OUT_PNG)
-    print("Graph generated in:", OUT_PNG)
+    # Generate graph (written under artifacts/)
+    out_png = app_resolver.gen_graph(output_file=OUT_PNG)
+    print("Graph generated in:", out_png)
 
 
 # test3()
@@ -128,10 +128,9 @@ def test4():
     # print("DEBUUUGGG: app_resolver.builder.dump() - ", app_resolver.builder)
     # app_resolver.builder.dump()
 
-    # Generate graph
-    OUT_PNG = os.path.join(WORK_DIR, "output_all_resources.png")
-    app_resolver.gen_all_resources_graph(output_file=OUT_PNG)
-    print("Graph generated in:", OUT_PNG)
+    # Generate graph (written under artifacts/)
+    out_png = app_resolver.gen_all_resources_graph(output_file="output_all_resources.png")
+    print("Graph generated in:", out_png)
 
 
 # test4()
@@ -165,9 +164,8 @@ def test5():
             resolve_features=False,
         )
         tag = "_".join(sources)
-        out_png = os.path.join(WORK_DIR, f"output_all_resources_{tag}.png")
-        app_resolver.gen_all_resources_graph(
-            output_file=out_png,
+        out_png = app_resolver.gen_all_resources_graph(
+            output_file=f"output_all_resources_{tag}.png",
             show_provides=SHOW_PROVIDES,
             show_vars=SHOW_VARS,
         )

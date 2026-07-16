@@ -1,6 +1,5 @@
 import sys
 from pprint import pprint
-from datetime import datetime
 
 # import networkx as nx
 # from collections import defaultdict
@@ -9,7 +8,6 @@ from datetime import datetime
 import logging
 
 # from graphlib import TopologicalSorter
-import pydot
 
 
 # from examples.model import (
@@ -21,9 +19,12 @@ import pydot
 #     # RequireLink,
 # )
 
+from app_grapher import PaasifyGrapher
+
 from resource_manager.resources import ResourceManager, Resource
 from resource_manager.resolver import DepBuilder
 # from resource_manager.links import ResourceLinkError
+
 
 
 logger = logging.getLogger(__name__)
@@ -276,6 +277,7 @@ class FeatureDepBuilder(DepBuilder):
 #         return match_name, provider_links
 
 
+
 # App resolver
 ###################################
 
@@ -387,363 +389,45 @@ class AppResolver(AppBase):
     ):
         "Generate a graph of all resources with requires/provides links"
 
-        resources_catalog = self.builder.rmanager
-        hidden_nodes = {self.builder.root_node_name, "__root__", "__builder__"}
-
-        # All declared provides in the catalog (not the contextualized resolution)
-        provider_links = [
-            provide
-            for resource in resources_catalog.catalog.values()
-            for provide in resource.provides
-            if resource.name not in hidden_nodes
-        ]
-
-        # Create a root directed graph
-        console_font = "Courier"
-        graph = pydot.Dot(
-            "my_graph",
-            layout="dot",
-            rankdir="LR",
-            graph_type="digraph",
-            newrank=True,
-            bgcolor="white",
-            label=f"{self.app_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            labelloc="t",
-            fontname=console_font,
-            ranksep="1.8",
-            nodesep="0.6",
+        grapher = PaasifyGrapher(
+            app_name=self.app_name,
+            feature_names=self.feature_names,
+            show_provides=show_provides,
+            show_vars=show_vars,
+            hidden_nodes={self.builder.root_node_name},
         )
-
-        # Node styles by group (shared with legend)
-        group_styles = [
-            {"color": "black", "fillcolor": "lightgreen", "shape": "box", "legend": "App resource", "key": "app"},
-            {"color": "blue", "fillcolor": "lightblue", "shape": "box", "legend": "Global resource", "key": "global"},
-            {
-                "color": "red",
-                "fillcolor": "#ffcccc",
-                "shape": "cds",
-                "legend": "Base feature (requested)",
-                "key": "base_requested",
-            },
-            {
-                "color": "purple",
-                "fillcolor": "#e0c0ff",
-                "shape": "cds",
-                "legend": "Base feature",
-                "key": "base",
-            },
-            {
-                "color": "green",
-                "fillcolor": "#ccffcc",
-                "shape": "box",
-                "legend": "Internal resource",
-                "key": "internal",
-            },
-        ]
-        styles_by_key = {s["key"]: s for s in group_styles}
-
-        # Edge styles by require modifier.
-        # Unset mod (None) means "one" at resolve time (DepBuilder default_mode="one").
-        one_style = {
-            "color": "#555555",
-            "penwidth": "2.5",
-            "legend": "one (! or default) — exactly one",
-        }
-        edge_styles = {
-            "!": one_style,
-            "one": one_style,
-            None: one_style,
-            "?": {
-                "color": "#e67e22",
-                "style": "dashed",
-                "penwidth": "2.5",
-                "legend": "zero_or_one (?) — optional",
-            },
-            "zero_or_one": {
-                "color": "#e67e22",
-                "style": "dashed",
-                "penwidth": "2.5",
-                "legend": "zero_or_one (?) — optional",
-            },
-            "+": {
-                "color": "#27ae60",
-                "penwidth": "2.5",
-                "legend": "one_or_many (+) — one or more",
-            },
-            "one_or_many": {
-                "color": "#27ae60",
-                "penwidth": "2.5",
-                "legend": "one_or_many (+) — one or more",
-            },
-            "*": {
-                "color": "#8e44ad",
-                "style": "dashed",
-                "penwidth": "2.5",
-                "legend": "zero_or_many (*) — any count",
-            },
-            "zero_or_many": {
-                "color": "#8e44ad",
-                "style": "dashed",
-                "penwidth": "2.5",
-                "legend": "zero_or_many (*) — any count",
-            },
-        }
-        # Unique legend rows (short mods only, avoid duplicate long-form)
-        edge_legend = [
-            one_style,
-            edge_styles["?"],
-            edge_styles["+"],
-            edge_styles["*"],
-        ]
-
-        def style_for_resource(resource):
-            if resource.group == "__global__":
-                return styles_by_key["global"]
-            if resource.group == "__base__":
-                if f"feature.{resource.name}" in self.feature_names:
-                    return styles_by_key["base_requested"]
-                return styles_by_key["base"]
-            if resource.group == "__internal__":
-                return styles_by_key["internal"]
-            return styles_by_key["app"]
-
-        # Legend (HTML table stays readable with rankdir=LR)
-        legend_rows = [
-            '<TR><TD COLSPAN="2" ALIGN="CENTER"><B>Legend</B></TD></TR>',
-            '<TR><TD COLSPAN="2" ALIGN="LEFT">Arrow: requires → provides</TD></TR>',
-            '<TR><TD COLSPAN="2" ALIGN="CENTER"><B>Resources</B></TD></TR>',
-        ]
-        for style in group_styles:
-            legend_rows.append(
-                f'<TR><TD COLSPAN="2" BGCOLOR="{style["fillcolor"]}" BORDER="1">'
-                f'{style["legend"]}</TD></TR>'
-            )
-        legend_rows.append(
-            '<TR><TD COLSPAN="2" ALIGN="CENTER"><B>Link modifiers</B></TD></TR>'
-        )
-        for style in edge_legend:
-            legend_rows.append(
-                f'<TR><TD BGCOLOR="{style["color"]}" WIDTH="20"> </TD>'
-                f'<TD ALIGN="LEFT">{style["legend"]}</TD></TR>'
-            )
-        legend_html = (
-            '<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">'
-            + "".join(legend_rows)
-            + "</TABLE>>"
-        )
-        graph.add_node(
-            pydot.Node(
-                "legend",
-                shape="plaintext",
-                label=legend_html,
-                fontname=console_font,
-            )
-        )
-
-        # Add nodes for each resource (group = fill color, no clusters)
-        for resource_name, resource in resources_catalog.catalog.items():
-            if resource_name in hidden_nodes:
-                continue
-
-            var_list = [f"{k}: {v}" for k, v in resource.vars.items()]
-            style = style_for_resource(resource)
-
-            rows = [f'<TR><TD ALIGN="LEFT"><B>{resource_name}</B></TD></TR>']
-            if show_provides and resource.provides:
-                for provide in resource.provides:
-                    parts = [provide.kind]
-                    if provide.instance:
-                        parts.append(provide.instance)
-                    if provide.mod:
-                        parts.append(provide.mod)
-                    rows.append(
-                        f'<TR><TD ALIGN="LEFT">'
-                        f'<FONT POINT-SIZE="9" COLOR="#666666">'
-                        f"• {'.'.join(parts)}"
-                        f"</FONT></TD></TR>"
-                    )
-            if show_vars and var_list:
-                rows.append(
-                    '<TR><TD ALIGN="LEFT">'
-                    '<FONT POINT-SIZE="9" COLOR="#666666"><I>vars:</I></FONT>'
-                    "</TD></TR>"
-                )
-                for var_line in var_list:
-                    rows.append(
-                        f'<TR><TD ALIGN="LEFT">'
-                        f'<FONT POINT-SIZE="9" COLOR="#666666">{var_line}</FONT>'
-                        "</TD></TR>"
-                    )
-            label = (
-                '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" '
-                'CELLPADDING="1" ALIGN="LEFT">'
-                + "".join(rows)
-                + "</TABLE>>"
-            )
-
-            node = pydot.Node(
-                resource_name,
-                shape=style["shape"],
-                color=style["color"],
-                style="filled",
-                fillcolor=style["fillcolor"],
-                label=label,
-                fontname=console_font,
-                labeljust="l",
-                labelloc="c",
-                nojustify=True,
-                margin="0.15,0.1",
-            )
-            graph.add_node(node)
-
-        # Add edges for all declared requires/provides (kind match only, no remap)
-        for resource_name, resource in resources_catalog.catalog.items():
-            if resource_name in hidden_nodes:
-                continue
-            for requirement in resource.requires:
-                for provider in provider_links:
-                    # Same kind rules as match_provider, without instance remapping
-                    kind_match = provider.kind == requirement.kind or (
-                        provider.parent is not None
-                        and provider.parent.name == requirement.kind
-                    )
-                    if not kind_match:
-                        continue
-                    provider_name = provider.resource.name
-                    if provider_name == resource_name or provider_name in hidden_nodes:
-                        continue
-                    label = requirement.rule
-                    edge_style = edge_styles.get(
-                        requirement.mod, edge_styles[None]
-                    )
-                    # Arrow: requirer → provider (points to what is required)
-                    edge_kwargs = {
-                        "label": label,
-                        "fontcolor": "lightgrey",
-                        "fontname": console_font,
-                        "color": edge_style["color"],
-                    }
-                    if edge_style.get("style"):
-                        edge_kwargs["style"] = edge_style["style"]
-                    if edge_style.get("penwidth"):
-                        edge_kwargs["penwidth"] = edge_style["penwidth"]
-                    edge = pydot.Edge(
-                        resource_name,
-                        provider_name,
-                        **edge_kwargs,
-                    )
-                    graph.add_edge(edge)
-
-        graph.write_png(output_file)
-
+        resources = self.builder.rmanager.catalog
+        grapher.add_resources(resources)
+        grapher.add_kind_match_edges(resources)
+        return grapher.write_png(output_file)
 
     def gen_graph_raw(self, output_file="output.png"):
         "Generate a graph of the app dependencies"
 
         self.builder.gen_graph(output_file)
-        
 
-    def gen_graph(self, output_file="output.png"):
-        "Generate a graph of the app dependencies"
+    def gen_graph(
+        self,
+        output_file="output.png",
+        show_provides=False,
+        show_vars=False,
+    ):
+        "Generate a graph of the resolved app dependencies"
 
-        # resources_catalog = self.rmanager
-        # dep_tree = self.dep_tree
+        grapher = PaasifyGrapher(
+            app_name=self.app_name,
+            feature_names=self.feature_names,
+            show_provides=show_provides,
+            show_vars=show_vars,
+            hidden_nodes={self.builder.root_node_name},
+        )
         resources_catalog = self.builder.rmanager
-        dep_tree = self.builder.dep_tree
         process_order = self.builder.dep_order
-
-        # Create a root directed graph
-        graph = pydot.Dot(
-            "my_graph",
-            layout="dot",
-            rankdir="RL",
-            # compound=,
-            graph_type="digraph",
-            newrank=True,
-            bgcolor="white",
-        )
-
-        # Create container subgraphs
-        cluster_app = pydot.Cluster(
-            "cluster_app",
-            label=f"{self.app_name} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            # rank="same",
-            #   color="black",
-            #   style="filled",
-            #   fillcolor="lightblue"
-            newrank=True,
-            rankdir="TB",
-            style="filled",
-            fillcolor="lightgreen",
-        )
-        cluster_global = pydot.Cluster(
-            "cluster_global",
-            label="Global",
-            # rank="min",
-            newrank=True,
-            rankdir="TB",
-            style="filled",
-            fillcolor="lightblue",
-        )
-
-        graph.add_subgraph(cluster_app)
-        graph.add_subgraph(cluster_global)
-
-        # Add nodes for each resource
         for resource_name in process_order:
-            resource = resources_catalog.get_resource(resource_name)
-
-            var_list = [f"{k}: {v}" for k, v in resource.vars.items()]
-            var_str = "\n".join(var_list)
-
-            dest = cluster_app
-            color = "black"
-            shape = "box"
-            rank = "same"
-            label = f"\\N\n{var_str}\l"
-            if resource.group == "__global__":
-                color = "blue"
-                dest = cluster_global
-            elif resource.group == "__base__":
-                requested_feat = False
-                if f"feature.{resource.name}" in self.feature_names:
-                    requested_feat = True
-
-                color = "red" if requested_feat else "purple"
-                shape = "cds"
-                dest = cluster_app
-            elif resource.group == "__internal__":
-                dest = graph
-                color = "green"
-
-            node = pydot.Node(
-                resource_name,
-                shape=shape,
-                color=color,
-                rank=rank,
-                label=label,
-                labeljust="l",
-                nojustify=True,
+            grapher.add_resource_node(
+                resource_name, resources_catalog.get_resource(resource_name)
             )
-            dest.add_node(node)
-
-        # Add edges for each dependency
-        # print("DEP TREE")
-        # pprint(dep_tree)
-        # # assert False, "WIP"
-        for resource_name in process_order:
-            edges = dep_tree[resource_name]
-
-            # for resource_name, edges in dep_tree.items():
-            # feature_dest = resources_catalog[resource_name]
-
-            for edge in edges:
-                dependency_name = edge.provider.resource.name
-                label = f"{edge.rule}"
-                edge = pydot.Edge(dependency_name, resource_name, label=label)
-                graph.add_edge(edge)
-
-        # Save the graph to a file
-        graph.write_png(output_file)
+        grapher.add_dep_tree_edges(self.builder.dep_tree, process_order)
+        return grapher.write_png(output_file)
 
 
