@@ -158,12 +158,14 @@ class DepBuilder:
         feature_names: Optional[List[str]] = None,
         remap_rules: Optional[Dict[str, str]] = None,
         debug: bool = False,
+        auto_provide_name: bool = False,
     ):
 
         self.root_node_name = root_name or "__builder__"
         self.remap_rules = remap_rules or {}
         self.feature_names = feature_names or []
         self.debug = debug
+        self.auto_provide_name = auto_provide_name
 
         resources = resources or {}
         if isinstance(resources, ResourceManager):
@@ -183,6 +185,7 @@ class DepBuilder:
         self,
         config: Dict[str, Union[Dict[str, Any], Resource]],
         scope: str = "APP_EXTRA",
+        force: bool = False,
     ) -> None:
         """Add resources to the resource manager.
 
@@ -192,14 +195,16 @@ class DepBuilder:
             config (dict): Dictionary of resources to add, where keys are resource names
                 and values are resource configurations or Resource instances
             scope (str, optional): Scope to assign to all added resources. Defaults to "APP_EXTRA".
+            force (bool, optional): If True, overwrite resources that already exist by name.
         """
-        self.rmanager.add_resources(config, scope=scope)
+        self.rmanager.add_resources(config, scope=scope, force=force)
 
     def resolve(
         self,
         remap_rules: Optional[Dict[str, str]] = None,
         feature_names: Optional[List[str]] = None,
         extra_resources: Optional[Dict[str, Union[Dict[str, Any], Resource]]] = None,
+        auto_provide_name: Optional[bool] = None,
     ) -> None:
         """Resolve dependencies between resources.
 
@@ -214,6 +219,9 @@ class DepBuilder:
                 the instance's feature_names. Defaults to None.
             extra_resources (dict, optional): Additional resources to add before resolution.
                 Defaults to None.
+            auto_provide_name (bool, optional): If True, each resource name is added to its
+                provides list when missing. Overrides the instance's auto_provide_name.
+                Defaults to None.
 
         Raises:
             ResourceResolutionError: If resolution has already been performed on this instance.
@@ -226,6 +234,8 @@ class DepBuilder:
         # Fetch argument overrides
         remap_rules = remap_rules or self.remap_rules
         feature_names = feature_names or self.feature_names
+        if auto_provide_name is not None:
+            self.auto_provide_name = auto_provide_name
 
         # Append extra resources
         if extra_resources:
@@ -256,12 +266,40 @@ class DepBuilder:
 
         This is meant to be overridden by subclasses to customize the resolution process.
         """
+        if self.auto_provide_name:
+            self._apply_auto_provide_name()
+
         # Resolve tree
         self.provider_links = self._build_provider_links()
         self.dep_tree = self._get_dependencies(debug=self.debug)
 
         self.dep_topo = self._get_simplified_tree(self.dep_tree)
         self.dep_order = self._get_dependencies_order(self.dep_topo)
+
+    @staticmethod
+    def _provider_link_str(provide: ResourceProviderLink) -> str:
+        """Canonical kind[.instance] string for a provider link."""
+        if provide.raw_value:
+            return provide.raw_value
+        if provide.instance:
+            return f"{provide.kind}.{provide.instance}"
+        return provide.kind
+
+    def _apply_auto_provide_name(self) -> None:
+        """Add each resource's name to its provides list when missing."""
+        for resource in self.rmanager:
+            if not isinstance(resource, Resource):
+                raise ResourceTypeError(
+                    f"Expected Resource, got: {type(resource)}={resource}"
+                )
+            if resource.name == self.root_node_name:
+                continue
+            existing = {self._provider_link_str(p) for p in resource.provides}
+            if resource.name in existing:
+                continue
+            resource.provides.insert(
+                0, ResourceProviderLink(config=resource.name, parent=resource)
+            )
 
     def _build_provider_links(self) -> List[ResourceProviderLink]:
         """Build a list of all provider links from resources.
