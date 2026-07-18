@@ -1,3 +1,5 @@
 __pycache__
 .hypothesis/
 .coverage
+.coverage.xml
+artifacts/
