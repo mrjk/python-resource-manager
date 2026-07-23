@@ -23,7 +23,15 @@ class ResourceTypeError(ResourceConfigError):
 
 
 class ResourceLinkError(ResourceManagerError):
-    """Raised when there's an error in resource linking."""
+    """Raised when there's an error in resource linking.
+
+    Optional ``binding_trace`` carries the explainable match attempt when the
+    failure came from cardinality / selection (pin, remap, default, schema).
+    """
+
+    def __init__(self, message: str, binding_trace=None):
+        super().__init__(message)
+        self.binding_trace = binding_trace
 
 
 class ResourceDuplicateError(ResourceManagerError):

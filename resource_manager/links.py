@@ -19,6 +19,11 @@ Resource links use a rule-based syntax that specifies the kind, instance, and ca
 
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from resource_manager.binding import (
+    BindingTrace,
+    match_name_and_providers,
+    resolve_binding,
+)
 from resource_manager.exceptions import (
     ResourceConfigError,
     ResourceLinkError,
@@ -238,145 +243,105 @@ class ResourceRequireLink(ResourceLink):
     def match_provider(
         self,
         providerlinks: List[ResourceProviderLink],
-        remap_rules: Optional[Dict[str, str]] = None,
+        remap_rules: Optional[Dict[str, Optional[str]]] = None,
         default_mode: str = "one",
         remap_requirement: bool = True,
-    ) -> Tuple[str, List[ResourceProviderLink]]:
-        """Match this requirement against a list of provider links to find compatible providers.
+    ) -> Tuple[Optional[str], List[ResourceProviderLink]]:
+        """Match this requirement against providers (compat wrapper).
 
-        Args:
-            providerlinks (list): List of ResourceProviderLink objects to match against
-            remap_rules (dict, optional): Dictionary mapping kinds to default instance names.
-                Defaults to None.
-            default_mode (str, optional): Default matching mode if not specified on the link.
-                Defaults to "one".
-            remap_requirement (bool, optional): Whether to remap requirement instance names,
-                otherwise match kind only. Defaults to True.
-
-        Returns:
-            tuple: A tuple containing:
-                - str: The resolved requirement name after any remapping
-                - list: Matching provider links that satisfy this requirement
-
-        The matching process:
-        1. Checks that provider kinds match this requirement's kind
-        2. If remap_requirement is True, remaps requirement instance names using remap_rules
-        3. Compares provider and requirement instance names
-        4. Validates the number of matches based on the matching mode
+        Prefer :meth:`match_provider_traced` when the caller needs binding
+        reason / candidates. Precedence is pin > remap > default_alias > schema.
+        Remap value ``NONE`` / ``None`` unbinds the kind (no invented `.default`).
         """
-        remap_rules = remap_rules or {}
-        if not isinstance(remap_rules, dict):
-            raise ResourceTypeError(
-                f"Expected dict for remap_rules, got: {type(remap_rules)}"
-            )
+        trace = self.match_provider_traced(
+            providerlinks,
+            remap_rules=remap_rules,
+            default_mode=default_mode,
+            remap_requirement=remap_requirement,
+        )
+        return match_name_and_providers(trace)
 
-        mod = self.mod or default_mode
-
-        requirement_name = self.instance
-        if remap_requirement is True:
-            if requirement_name is None:
-                requirement_name = remap_rules.get(self.kind, None)
-            if requirement_name is None:
-                requirement_name = self.default_requirement_name
-            if not isinstance(requirement_name, str):
-                raise ResourceTypeError(
-                    f"Requirement name must be a string, got: {type(requirement_name)}"
-                )
-
-        matches = []
-        for provider in providerlinks:
-            if provider.kind != self.kind:
-                continue
-
-            if remap_requirement is False and requirement_name is None:
-                matches.append(provider)
-                continue
-
-            provider_name = provider.instance
-            if provider_name is None:
-                provider_name = remap_rules.get(provider.kind, None)
-            if provider_name is None:
-                provider_name = self.default_providers_name
-
-            if not isinstance(provider_name, str):
-                raise ResourceTypeError(
-                    f"Provider name must be a string, got: {type(provider_name)}"
-                )
-            # print(f"CHECK kind {self.kind}: {requirement_name} == {provider_name} ?")
-            if provider_name == requirement_name:
-                # print(f"Match: {self} matches {provider}")
-                matches.append(provider)
-
-        # Validate matches
-        self._validate_result(matches, mod, requirement_name, providerlinks)
-
-        return requirement_name, matches
-
-    def _validate_result(
+    def match_provider_traced(
         self,
-        matches: List[ResourceProviderLink],
-        mod: str,
-        requirement_name: str,
+        providerlinks: List[ResourceProviderLink],
+        remap_rules: Optional[Dict[str, Optional[str]]] = None,
+        default_mode: str = "one",
+        remap_requirement: bool = True,
+    ) -> BindingTrace:
+        """Match providers and return an explainable :class:`BindingTrace`."""
+        trace = resolve_binding(
+            self,
+            providerlinks,
+            remap_rules=remap_rules,
+            default_mode=default_mode,
+            default_instance_name=self.default_requirement_name,
+            remap_requirement=remap_requirement,
+        )
+        self._validate_binding(trace, providerlinks)
+        return trace
+
+    def _validate_binding(
+        self,
+        trace: BindingTrace,
         providerlinks: List[ResourceProviderLink],
     ) -> None:
-        """Validate that the number of matching providers satisfies the requirement mode.
-
-        Args:
-            matches (list): The list of matching provider links found
-            mod (str): The matching mode to validate against ("!", "?", "+", "*")
-            requirement_name (str): The resolved requirement name being validated
-            providerlinks (list): List of all available provider links
-
-        Raises:
-            ResourceLinkError: If the number of matches violates the mode's constraints:
-                - "!" or "one": Exactly one match required
-                - "?" or "zero_or_one": Zero or one match required
-                - "+" or "one_or_many": One or more matches required
-                - "*" or "zero_or_many": Any number of matches allowed
-
-        The error messages include helpful context about available providers to aid debugging.
-        """
+        """Validate cardinality; attach *trace* on :class:`ResourceLinkError`."""
+        mod = trace.requirement_mod
         if mod not in RESOURCE_LINK_MODS:
             raise ResourceConfigError(f"Invalid mod: {mod}")
 
+        matches = trace.matches
+        requirement_name = trace.resolved_instance
+
         def build_error_info():
-            "Build error informations"
             choices = [link for link in providerlinks if link.kind == self.kind]
             choices_names = (
-                " ".join([f"{link.instance}" for link in choices])
+                " ".join(
+                    [
+                        f"{link.instance}" if link.instance is not None else "default"
+                        for link in choices
+                    ]
+                )
                 or "<NO OTHER CHOICES>"
             )
-
-            msg_suffix = "" if self.instance is not None else f" ({requirement_name})"
+            if requirement_name is not None and self.instance is None:
+                msg_suffix = f" ({requirement_name})"
+            elif trace.reason == "unbound":
+                msg_suffix = " (unbound/NONE)"
+            elif trace.reason == "schema":
+                msg_suffix = " (schema)"
+            else:
+                msg_suffix = ""
             rule_ident = f"{self.rule}{msg_suffix}"
-
             return rule_ident, choices_names
 
-        # Validate rule matches
+        def raise_link_error(msg: str) -> None:
+            raise ResourceLinkError(msg, binding_trace=trace)
+
         if mod in ["!", "one"]:
             if not len(matches) == 1:
                 rule_ident, choices_names = build_error_info()
                 msg = (
                     f"Requirement {rule_ident} did not match exactly one provider, "
-                    f"got: {len(matches)}, please chose one of: {choices_names}"
+                    f"got: {len(matches)}, reason={trace.reason}, "
+                    f"please chose one of: {choices_names}"
                 )
-                raise ResourceLinkError(msg)
+                raise_link_error(msg)
         if mod in ["?", "zero_or_one"]:
             if not len(matches) < 2:
                 rule_ident, choices_names = build_error_info()
                 msg = (
                     f"Requirement {rule_ident} did not match exactly zero or one provider, "
-                    f"got: {len(matches)}, please chose one of: {choices_names}"
+                    f"got: {len(matches)}, reason={trace.reason}, "
+                    f"please chose one of: {choices_names}"
                 )
-                raise ResourceLinkError(msg)
+                raise_link_error(msg)
         if mod in ["+", "one_or_many"]:
             if not len(matches) >= 1:
                 rule_ident, choices_names = build_error_info()
                 msg = (
                     f"Requirement {rule_ident} did not match one or more providers, "
-                    f"got: {len(matches)}, please chose one of: {choices_names}"
+                    f"got: {len(matches)}, reason={trace.reason}, "
+                    f"please chose one of: {choices_names}"
                 )
-                raise ResourceLinkError(msg)
-        # if mod in ["*", "zero_or_many"]:
-        #     # This can't fail
-        #     pass
+                raise_link_error(msg)

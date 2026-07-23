@@ -28,6 +28,7 @@ except ImportError:
     pydot = None
     HAS_PYDOT = False
 
+from resource_manager.binding import BindingTrace
 from resource_manager.exceptions import (
     ResourceDuplicateError,
     ResourceResolutionError,
@@ -145,6 +146,7 @@ class DepBuilder:
             Can be a ResourceManager instance or a dictionary of resources. Defaults to None.
         feature_names (list, optional): List of feature names to include. Defaults to None.
         remap_rules (dict, optional): Rules for remapping resource kinds. Defaults to None.
+            Values may be instance names, or ``None`` / ``\"NONE\"`` to unbind.
         debug (bool, optional): Enable debug output. Defaults to False.
     """
 
@@ -156,7 +158,7 @@ class DepBuilder:
         resources: Optional[Union[ResourceManager, Dict[str, Resource]]] = None,
         root_name: Optional[str] = "__root__",
         feature_names: Optional[List[str]] = None,
-        remap_rules: Optional[Dict[str, str]] = None,
+        remap_rules: Optional[Dict[str, Optional[str]]] = None,
         debug: bool = False,
         auto_provide_name: bool = False,
     ):
@@ -180,6 +182,7 @@ class DepBuilder:
         self.dep_tree = None
         self.dep_topo = None
         self.dep_order = None
+        self.binding_traces: List[BindingTrace] = []
 
     def add_resources(
         self,
@@ -201,7 +204,7 @@ class DepBuilder:
 
     def resolve(
         self,
-        remap_rules: Optional[Dict[str, str]] = None,
+        remap_rules: Optional[Dict[str, Optional[str]]] = None,
         feature_names: Optional[List[str]] = None,
         extra_resources: Optional[Dict[str, Union[Dict[str, Any], Resource]]] = None,
         auto_provide_name: Optional[bool] = None,
@@ -214,7 +217,8 @@ class DepBuilder:
 
         Args:
             remap_rules (dict, optional): Rules for remapping resource kinds, overriding
-                the instance's remap_rules. Defaults to None.
+                the instance's remap_rules. Values may be instance names or
+                ``None`` / ``\"NONE\"`` to unbind. Defaults to None.
             feature_names (list, optional): List of feature names to include, overriding
                 the instance's feature_names. Defaults to None.
             extra_resources (dict, optional): Additional resources to add before resolution.
@@ -230,9 +234,11 @@ class DepBuilder:
         if self.resolved:
             raise ResourceResolutionError("Already resolved")
         self.resolved = True
+        self.binding_traces = []
 
         # Fetch argument overrides
         remap_rules = remap_rules or self.remap_rules
+        self.remap_rules = remap_rules
         feature_names = feature_names or self.feature_names
         if auto_provide_name is not None:
             self.auto_provide_name = auto_provide_name
@@ -430,39 +436,32 @@ class DepBuilder:
     # pylint: disable=unused-argument
     def resolve_requirements(
         self, requirement: ResourceRequireLink, lvl: int = 0
-    ) -> Tuple[str, List[ResourceProviderLink]]:
+    ) -> Tuple[Optional[str], List[ResourceProviderLink]]:
         """Resolve a requirement against available providers.
 
-        This method matches a requirement against available provider links to find
-        compatible providers. It must be implemented by subclasses to define the
-        specific matching logic for resolving dependencies.
-
-        The actual implementation should:
-        1. Identify providers that match the requirement's kind
-        2. Apply any instance name remapping based on remap_rules
-        3. Filter matches based on instance names
-        4. Validate match cardinality against the requirement's modifier
+        Uses pin > remap > default_alias > schema precedence. Each attempt is
+        appended to :attr:`binding_traces` for explain / inspect.
 
         Args:
             requirement (ResourceRequireLink): The requirement to resolve
             lvl (int, optional): Current recursion level for debugging output. Defaults to 0.
 
         Returns:
-            tuple: A tuple containing:
-                - str: The resolved requirement name after any remapping
-                - list: List of ResourceProviderLink objects that satisfy this requirement
-
-        Raises:
-            ResourceImplementationError: This method must be implemented by subclasses
+            tuple: ``(resolved_instance, matching provider links)``.
+                ``resolved_instance`` may be ``None`` for schema or unbound matches.
         """
-        match_name, provider_links = requirement.match_provider(
+        trace = requirement.match_provider_traced(
             self.provider_links,
             remap_rules=self.remap_rules,
             default_mode="one",
             remap_requirement=True,
         )
+        self.binding_traces.append(trace)
+        return trace.resolved_instance, list(trace.matches)
 
-        return match_name, provider_links
+    def explain_bindings(self) -> List[Dict[str, object]]:
+        """Return JSON-friendly binding traces from the last :meth:`resolve`."""
+        return [trace.as_dict() for trace in self.binding_traces]
 
     def _get_simplified_tree(self, dep_tree) -> dict:
         """Create a simplified dependency tree with resource names only.
