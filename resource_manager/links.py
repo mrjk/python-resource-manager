@@ -270,7 +270,7 @@ class ResourceRequireLink(ResourceLink):
                 f"Expected dict for remap_rules, got: {type(remap_rules)}"
             )
 
-        mod = default_mode or self.mod
+        mod = self.mod or default_mode
 
         requirement_name = self.instance
         if remap_requirement is True:

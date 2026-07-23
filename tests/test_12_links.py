@@ -116,40 +116,73 @@ class TestResourceRequireLink:
         assert instance == requirement.default_providers_name
         assert len(matches) == 1  # Only default db provider
 
-    # TOFIX: Modifiers don't work yet
-    # def test_require_link_with_modifiers(self, provider_links):
-    #     """Test requirement matching with different modifiers."""
-    #     # Test "!" (one) modifier - strict requirement
-    #     req_one = ResourceRequireLink("db.!")
-    #     instance, matches = req_one.match_provider(provider_links)
-    #     assert len(matches) == 1  # Both db providers
+    def test_require_link_with_modifiers(self, provider_links):
+        """Explicit link modifiers win over default_mode='one' (resolver default)."""
+        # "!" — exactly one of the remapped default instance
+        req_one = ResourceRequireLink("db.!")
+        _instance, matches = req_one.match_provider(
+            provider_links, default_mode="one"
+        )
+        assert len(matches) == 1
+        assert matches[0].instance == "default"
 
-    #     # Test "?" (zero_or_one) modifier - optional requirement
-    #     req_optional = ResourceRequireLink("missing.?")
-    #     instance, matches = req_optional.match_provider(provider_links)
-    #     assert len(matches) == 0  # No matches, but doesn't fail
+        # "?" — zero matches allowed
+        req_optional = ResourceRequireLink("missing.?")
+        _instance, matches = req_optional.match_provider(
+            provider_links, default_mode="one"
+        )
+        assert matches == []
 
-    #     # Test "+" (one_or_many) modifier - at least one required
-    #     req_many = ResourceRequireLink("db.+")
-    #     instance, matches = req_many.match_provider(provider_links)
-    #     assert len(matches) == 2  # Both db providers
+        # "+" — one or more of remapped default instance
+        req_many = ResourceRequireLink("db.+")
+        _instance, matches = req_many.match_provider(
+            provider_links, default_mode="one"
+        )
+        assert len(matches) == 1
+        assert matches[0].instance == "default"
 
-    #     # Test "*" (zero_or_many) modifier - any number
-    #     req_any = ResourceRequireLink("missing.*")
-    #     instance, matches = req_any.match_provider(provider_links)
-    #     assert len(matches) == 0  # No matches, but doesn't fail
+        # "*" — zero matches allowed (catalog apps with no web_app providers)
+        req_any = ResourceRequireLink("missing.*")
+        _instance, matches = req_any.match_provider(
+            provider_links, default_mode="one"
+        )
+        assert matches == []
+
+    def test_explicit_star_mod_allows_zero_matches_with_default_mode_one(self):
+        """Regression: web_app.* must not be forced to exactly-one by default_mode."""
+        requirement = ResourceRequireLink("web_app.*")
+        _instance, matches = requirement.match_provider([], default_mode="one")
+        assert matches == []
+
+    def test_explicit_question_mod_allows_zero_matches_with_default_mode_one(self):
+        """Regression: KIND.? must honor optional cardinality over default_mode."""
+        requirement = ResourceRequireLink("expose_admin.?")
+        _instance, matches = requirement.match_provider([], default_mode="one")
+        assert matches == []
+
+    def test_absent_mod_still_uses_default_mode_one(self):
+        """When the link has no modifier, default_mode='one' still applies."""
+        requirement = ResourceRequireLink("web_app")
+        with pytest.raises(ResourceLinkError, match="exactly one provider"):
+            requirement.match_provider([], default_mode="one")
+
+    def test_explicit_bang_still_requires_one_with_default_mode_one(self):
+        """Explicit ! must keep failing on zero matches."""
+        requirement = ResourceRequireLink("web_app.!")
+        with pytest.raises(ResourceLinkError, match="exactly one provider"):
+            requirement.match_provider([], default_mode="one")
 
     def test_require_link_validation_errors(self, provider_links):
         """Test validation errors when modifiers' requirements aren't met."""
         # Test "!" (one) modifier with no matches
         req_one = ResourceRequireLink("missing.!")
         with pytest.raises(ResourceLinkError):
-            req_one.match_provider(provider_links)
+            req_one.match_provider(provider_links, default_mode="one")
 
         # Test "+" (one_or_many) modifier with no matches
         req_many = ResourceRequireLink("missing.+")
         with pytest.raises(ResourceLinkError):
-            req_many.match_provider(provider_links)
+            req_many.match_provider(provider_links, default_mode="one")
 
     def test_remapping_rules(self, provider_links):
         """Test requirement remapping rules."""
